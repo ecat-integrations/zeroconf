@@ -1,0 +1,3 @@
+# integration-zeroconf —— peer 模型 cohesive owner（jmdns mDNS 监听 + 匹配 + 触发 flow）
+# 只依赖 ecat-core（triggerDiscovery/SourceType/IntegrationBase）。无对其他集成的依赖。
+requires_core: ^2.0.0

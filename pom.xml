@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ecat</groupId>
+        <artifactId>ecat-project</artifactId>
+        <version>1.0.0</version>
+        <relativePath />
+    </parent>
+
+    <artifactId>integration-zeroconf</artifactId>
+    <version>2.0.0</version>
+    <packaging>jar</packaging>
+    <name>Zeroconf Discovery Integration</name>
+    <description>peer 模型 cohesive owner：jmdns 监听 mDNS 服务 + HA-faithful 匹配订阅表 + 触发目标设备集成的 ZEROCONF flow。core 对 zeroconf 业务零感知。</description>
+
+    <dependencies>
+        <!-- ecat-core：provided（core 运行时已有，不打进 fatjar）-->
+        <dependency>
+            <groupId>com.ecat</groupId>
+            <artifactId>ecat-core</artifactId>
+            <version>2.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- jmdns：compile（打进 fatjar）；pure Java，无 native lib -->
+        <dependency>
+            <groupId>org.jmdns</groupId>
+            <artifactId>jmdns</artifactId>
+            <version>3.5.9</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <descriptors>
+                        <descriptor>src/main/assembly/fatjar.xml</descriptor>
+                    </descriptors>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <archiverConfig>
+                        <compress>false</compress>
+                    </archiverConfig>
+                    <archive>
+                        <manifestEntries>
+                            <Ecat-Artifact-Id>${project.artifactId}</Ecat-Artifact-Id>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+            <comments>This integration is part of ECAT Project and licensed under Apache 2.0</comments>
+        </license>
+    </licenses>
+</project>
