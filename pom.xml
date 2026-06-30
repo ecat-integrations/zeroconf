@@ -8,12 +8,12 @@
     <parent>
         <groupId>com.ecat</groupId>
         <artifactId>ecat-project</artifactId>
-        <version>1.0.0</version>
+        <version>3.0.0</version>
         <relativePath />
     </parent>
 
     <artifactId>integration-zeroconf</artifactId>
-    <version>2.0.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
     <name>Zeroconf Discovery Integration</name>
     <description>peer 模型 cohesive owner：jmdns 监听 mDNS 服务 + HA-faithful 匹配订阅表 + 触发目标设备集成的 ZEROCONF flow。core 对 zeroconf 业务零感知。</description>
@@ -23,7 +23,7 @@
         <dependency>
             <groupId>com.ecat</groupId>
             <artifactId>ecat-core</artifactId>
-            <version>2.0.0</version>
+            <version>3.0.0</version>
             <scope>provided</scope>
         </dependency>
         <!-- jmdns：compile（打进 fatjar）；pure Java，无 native lib -->
