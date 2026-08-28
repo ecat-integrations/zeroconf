@@ -16,6 +16,7 @@ import com.ecat.core.ConfigFlow.ConfigFlowService;
 import com.ecat.core.EcatCore;
 import com.ecat.core.Integration.IntegrationBase;
 import com.ecat.core.Integration.IntegrationLoadOption;
+import com.ecat.core.Task.runner.HostedExecutors;
 import com.ecat.core.Utils.Log;
 import com.ecat.core.Utils.LogFactory;
 
@@ -30,6 +31,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Zeroconf discovery 集成（peer 模型 cohesive owner / broker）。
@@ -59,6 +62,14 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
     private JmDNS jmdns;
     private final Set<String> listenedTypes = new HashSet<String>(); // 已注册 listener 的服务类型
     private volatile boolean started = false;
+
+    /**
+     * 发现业务工作道（{@link HostedExecutors#bounded}，宿主=本集成，模块级单飞串行）：
+     * zeroconf 发现已无物理总线维度（jmdns 是组播监听，一台主机一条），业务实体=本模块——
+     * 所有 discovery 触发 FIFO 串行（流量极低，单道无饿死面）。拆卸挂集成 onRemove
+     * （onRelease sweep 自动 shutdownNow），本类零收尾样板。包内可见供测试直接驱动/关停。
+     */
+    final ExecutorService discoveryLane = HostedExecutors.bounded(1, this);
 
     public ZeroconfDiscoveryIntegration() {
         super();
@@ -162,6 +173,14 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
         // 发现场景不处理移除（设备离线由设备状态机负责）
     }
 
+    /**
+     * jmdns 回调（库线程）：只投事件，不执行业务。
+     * <p>构 {@link ZeroconfDiscoveryPayload}（纯数据快照，O(1) 不碰 IO）→ 经
+     * {@link #discoveryLane} 投递（单飞串行）即返；匹配订阅与 discovery flow 创建链
+     * （{@link #triggerDiscoveryFlows}）在道 worker 执行——避免 flow 创建（可能含
+     * DB/registry 操作）拖慢 jmdns 组播收包线程。道队列满/宿主已拆卸只记账
+     * （mDNS 周期重解天然重试，不重投）。
+     */
     @Override
     public void serviceResolved(ServiceEvent event) {
         ServiceInfo info = event.getInfo();
@@ -172,8 +191,26 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
         if (payload == null) {
             return; // 数据未就绪，等下次解析
         }
-        log.info("[integration-zeroconf] serviceResolved: {}", payload);
+        submitDiscoveryEvent(payload);
+    }
 
+    /** 投递路径：构载荷闭包 + discoveryLane execute，O(1) 返回；不执行任何业务。包内可见供测试直接驱动。 */
+    void submitDiscoveryEvent(ZeroconfDiscoveryPayload payload) {
+        try {
+            discoveryLane.execute(() -> triggerDiscoveryFlows(payload));
+        } catch (RejectedExecutionException e) {
+            // 合法边界：道队列满/宿主已拆卸（HostedExecutors 契约同步抛 REE）。库回调线程记账即返，
+            // 不向上抛以免打断 jmdns；不重投——mDNS 周期重解天然重试（过期即弃）
+            log.warn("[integration-zeroconf] 发现事件丢弃（{}）: {}", e.getMessage(), payload);
+        }
+    }
+
+    /**
+     * worker 侧业务：匹配订阅 → 逐 coordinate 触发 discovery flow（原 serviceResolved 内联体，
+     * 语义零变化）。protected 便于测试子类观察「业务确实在 worker 线程执行」。
+     */
+    protected void triggerDiscoveryFlows(ZeroconfDiscoveryPayload payload) {
+        log.info("[integration-zeroconf] serviceResolved: {}", payload);
         List<String> coordinates = matcher.resolveCoordinates(payload, registry);
         if (coordinates.isEmpty()) {
             return; // 无人订阅此服务
@@ -198,7 +235,7 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
                 log.debug("[integration-zeroconf] startDiscoveryFlow 未生效（可能 R12 重复/未就绪/无 handler）: coordinate={}, reason={}",
                         coordinate, e.getMessage());
             } catch (RuntimeException e) {
-                // 防御：async listener 绝不让异常逃逸到 jmdns
+                // 防御：单 coordinate 异常不逃逸——道 worker 会记日志续跑，此处 WARN 留逐 coordinate 细节
                 log.warn("[integration-zeroconf] startDiscoveryFlow 运行时异常（忽略，mDNS 会重试）: coordinate={}, reason={}",
                         coordinate, e.getMessage());
             }
