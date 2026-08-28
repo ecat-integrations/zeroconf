@@ -113,9 +113,8 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
     }
 
     @Override
-    public void onRelease() {
+    protected void onReleaseImpl() {
         closeJmdns();
-        super.onRelease(); // 清日志上下文
     }
 
     private void closeJmdns() {
