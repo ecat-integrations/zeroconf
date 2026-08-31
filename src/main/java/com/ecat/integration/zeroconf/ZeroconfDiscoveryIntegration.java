@@ -59,9 +59,8 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
     private final ZeroconfSubscriptionRegistry registry = new ZeroconfSubscriptionRegistry();
     private final ZeroconfMatcher matcher = new ZeroconfMatcher();
 
-    private JmDNS jmdns;
+    private JmDNS jmdns; // 兼生命周期状态标记：非 null = 已启动监听（onStart 成功置入），null = 未启动或已关闭（closeJmdns 置 null；serviceAdded/ensureListenerLocked 均据此判活）
     private final Set<String> listenedTypes = new HashSet<String>(); // 已注册 listener 的服务类型
-    private volatile boolean started = false;
 
     /**
      * 发现业务工作道（{@link HostedExecutors#bounded}，宿主=本集成，模块级单飞串行）：
@@ -93,7 +92,6 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
         log.info("[integration-zeroconf] onStart: 启动 jmdns 监听");
         try {
             jmdns = JmDNS.create();
-            started = true;
             // 为 registry 中已有的所有服务类型补注册 listener（处理 subscribe 早于 onStart 的情况）
             synchronized (listenedTypes) {
                 for (ZeroconfSubscription sub : collectAllSubscriptions()) {
@@ -118,7 +116,6 @@ public class ZeroconfDiscoveryIntegration extends IntegrationBase implements Ser
     }
 
     private void closeJmdns() {
-        started = false;
         JmDNS j = jmdns;
         if (j != null) {
             try {
